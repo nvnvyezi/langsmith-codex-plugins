@@ -14,10 +14,15 @@ import type {
   StandardMessage,
 } from "./types";
 
-const findLast = <T>(
-  array: T[],
-  predicate: (item: T) => boolean,
-): T | undefined => {
+const DEBUG_relative = (startTime: number) => {
+  const now = Date.now();
+  return (timestamp: number) => {
+    const diff = timestamp - startTime;
+    return now + diff;
+  };
+};
+
+const findLast = <T>(array: T[], predicate: (item: T) => boolean): T | undefined => {
   for (let i = array.length - 1; i >= 0; i--) {
     if (predicate(array[i])) return array[i];
   }
@@ -45,10 +50,7 @@ function getUploadedSidecarPath(rolloutFile: string): string {
 
 async function loadUploadedTurnIds(rolloutFile: string): Promise<Set<string>> {
   try {
-    const data = await fs.readFile(
-      getUploadedSidecarPath(rolloutFile),
-      "utf-8",
-    );
+    const data = await fs.readFile(getUploadedSidecarPath(rolloutFile), "utf-8");
     return new Set(data.split("\n").filter(Boolean));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
@@ -56,15 +58,8 @@ async function loadUploadedTurnIds(rolloutFile: string): Promise<Set<string>> {
   }
 }
 
-async function markTurnUploaded(
-  rolloutFile: string,
-  turnId: string,
-): Promise<void> {
-  await fs.appendFile(
-    getUploadedSidecarPath(rolloutFile),
-    `${turnId}\n`,
-    "utf-8",
-  );
+async function markTurnUploaded(rolloutFile: string, turnId: string): Promise<void> {
+  await fs.appendFile(getUploadedSidecarPath(rolloutFile), `${turnId}\n`, "utf-8");
 }
 
 // Rollout files are stored at `<sessionsRoot>/YYYY/MM/DD/rollout-<ts>-<threadId>.jsonl`.
@@ -105,10 +100,7 @@ function mergeMessages(result: AggregateMessage<StandardMessage>[]) {
     (acc, { message, timestamp, tokenCount, subagentThreads }) => {
       const last = acc.length > 0 ? acc[acc.length - 1] : undefined;
 
-      if (
-        !["ai", "user", "system"].includes(message.role) ||
-        last?.message.role !== message.role
-      ) {
+      if (!["ai", "user", "system"].includes(message.role) || last?.message.role !== message.role) {
         acc.push({
           message,
           timestamp: { start: timestamp, end: timestamp },
@@ -133,175 +125,162 @@ function mergeMessages(result: AggregateMessage<StandardMessage>[]) {
 }
 
 function convertToStandardMessages(messages: AggregateMessage<ResponseItem>[]) {
-  return messages.map(
-    ({ message, ...rest }): AggregateMessage<StandardMessage> => {
-      if (message.type === "message") {
-        const role = (() => {
-          if (message.role === "developer") return "system";
-          if (message.role === "assistant") return "ai";
-          return message.role;
-        })();
+  return messages.map(({ message, ...rest }): AggregateMessage<StandardMessage> => {
+    if (message.type === "message") {
+      const role = (() => {
+        if (message.role === "developer") return "system";
+        if (message.role === "assistant") return "ai";
+        return message.role;
+      })();
 
-        const content = message.content.map((c) => {
-          if (c.type === "input_text") return { type: "text", text: c.text };
+      const content = message.content.map((c) => {
+        if (c.type === "input_text") return { type: "text", text: c.text };
 
-          if (c.type === "output_text") return { type: "text", text: c.text };
+        if (c.type === "output_text") return { type: "text", text: c.text };
 
-          if (c.type === "text") {
-            return { type: "text", text: c.text };
-          }
+        if (c.type === "text") {
+          return { type: "text", text: c.text };
+        }
 
-          if (c.type === "input_image") {
-            return {
-              type: "image_url",
-              image_url: c.image_url,
-            };
-          }
-
-          return { type: "non_standard", value: c };
-        });
-
-        return { message: { role, content }, ...rest };
-      }
-
-      if (message.type === "function_call") {
-        const name = message.name;
-        const id = message.call_id;
-        const args = message.arguments;
-
-        try {
+        if (c.type === "input_image") {
           return {
-            message: {
-              role: "ai",
-              content: [
-                { type: "tool_call", name, id, args: JSON.parse(args) },
-              ],
-            },
-            ...rest,
-          };
-        } catch {
-          return {
-            message: {
-              role: "ai",
-              content: [{ type: "tool_call_chunk", name, id, args }],
-            },
-            ...rest,
+            type: "image_url",
+            image_url: c.image_url,
           };
         }
-      }
 
-      if (message.type === "function_call_output") {
-        const text =
-          typeof message.output === "string"
-            ? message.output
-            : JSON.stringify(message.output);
+        return { type: "non_standard", value: c };
+      });
 
-        return {
-          message: {
-            role: "tool",
-            content: [{ type: "text", text }],
-            tool_call_id: message.call_id,
-          },
-          ...rest,
-        };
-      }
+      return { message: { role, content }, ...rest };
+    }
 
-      if (message.type === "custom_tool_call") {
-        const name = message.name;
-        const id = message.call_id;
+    if (message.type === "function_call") {
+      const name = message.name;
+      const id = message.call_id;
+      const args = message.arguments;
 
+      try {
         return {
           message: {
             role: "ai",
-            content: [{ type: "tool_call", name, id, args: message.input }],
+            content: [{ type: "tool_call", name, id, args: JSON.parse(args) }],
           },
           ...rest,
         };
-      }
-
-      if (message.type === "custom_tool_call_output") {
-        const text =
-          typeof message.output === "string"
-            ? message.output
-            : JSON.stringify(message.output);
-
-        return {
-          message: {
-            role: "tool",
-            content: [{ type: "text", text }],
-            tool_call_id: message.call_id,
-          },
-          ...rest,
-        };
-      }
-
-      if (message.type === "tool_search_call") {
+      } catch {
         return {
           message: {
             role: "ai",
-            content: [
-              {
-                type: "tool_call",
-                name: message.type,
-                id: message.call_id,
-                args: message.arguments,
-              },
-            ],
+            content: [{ type: "tool_call_chunk", name, id, args }],
           },
           ...rest,
         };
       }
+    }
 
-      if (message.type === "tool_search_output") {
-        const text = JSON.stringify(message.tools);
-        return {
-          message: {
-            role: "tool",
-            content: [{ type: "text", text }],
-            tool_call_id: message.call_id,
-          },
-          ...rest,
-        };
-      }
-
-      if (message.type === "reasoning") {
-        // Only include reasoning if it has non-encrypted content
-        const { type: _, content: reasoningRaw, ...extras } = message;
-
-        const reasoning = message.content
-          ? typeof message.content === "string"
-            ? message.content
-            : JSON.stringify(message.content)
-          : undefined;
-
-        return {
-          message: {
-            role: "ai",
-            content: [{ type: "reasoning", reasoning, extras }],
-          },
-          ...rest,
-        };
-      }
+    if (message.type === "function_call_output") {
+      const text =
+        typeof message.output === "string" ? message.output : JSON.stringify(message.output);
 
       return {
         message: {
-          role: "unknown",
-          content: [{ type: "non_standard", value: message }],
-          _raw: message,
+          role: "tool",
+          content: [{ type: "text", text }],
+          tool_call_id: message.call_id,
         },
         ...rest,
       };
-    },
-  );
+    }
+
+    if (message.type === "custom_tool_call") {
+      const name = message.name;
+      const id = message.call_id;
+
+      return {
+        message: {
+          role: "ai",
+          content: [{ type: "tool_call", name, id, args: message.input }],
+        },
+        ...rest,
+      };
+    }
+
+    if (message.type === "custom_tool_call_output") {
+      const text =
+        typeof message.output === "string" ? message.output : JSON.stringify(message.output);
+
+      return {
+        message: {
+          role: "tool",
+          content: [{ type: "text", text }],
+          tool_call_id: message.call_id,
+        },
+        ...rest,
+      };
+    }
+
+    if (message.type === "tool_search_call") {
+      return {
+        message: {
+          role: "ai",
+          content: [
+            {
+              type: "tool_call",
+              name: message.type,
+              id: message.call_id,
+              args: message.arguments,
+            },
+          ],
+        },
+        ...rest,
+      };
+    }
+
+    if (message.type === "tool_search_output") {
+      const text = JSON.stringify(message.tools);
+      return {
+        message: {
+          role: "tool",
+          content: [{ type: "text", text }],
+          tool_call_id: message.call_id,
+        },
+        ...rest,
+      };
+    }
+
+    if (message.type === "reasoning") {
+      // Only include reasoning if it has non-encrypted content
+      const { type: _, content: reasoningRaw, ...extras } = message;
+
+      const reasoning = message.content
+        ? typeof message.content === "string"
+          ? message.content
+          : JSON.stringify(message.content)
+        : undefined;
+
+      return {
+        message: {
+          role: "ai",
+          content: [{ type: "reasoning", reasoning, extras }],
+        },
+        ...rest,
+      };
+    }
+
+    return {
+      message: {
+        role: "unknown",
+        content: [{ type: "non_standard", value: message }],
+        _raw: message,
+      },
+      ...rest,
+    };
+  });
 }
 
-function getUsageMetadata(
-  counts: TokenCount | undefined,
-): Record<string, unknown> | undefined {
-  if (
-    counts == null ||
-    Object.values(counts ?? {}).every((value) => value == null)
-  ) {
+function getUsageMetadata(counts: TokenCount | undefined): Record<string, unknown> | undefined {
+  if (counts == null || Object.values(counts ?? {}).every((value) => value == null)) {
     return undefined;
   }
 
@@ -362,19 +341,15 @@ async function postTurn(
 
   const messages = convertToStandardMessages(task.messages);
 
-  const user =
-    task.userMessageIndex != null
-      ? messages.at(task.userMessageIndex)
-      : undefined;
+  const user = task.userMessageIndex != null ? messages.at(task.userMessageIndex) : undefined;
 
   const agent = mergeMessages(
-    task.userMessageIndex != null
-      ? messages.slice(task.userMessageIndex + 1)
-      : messages,
+    task.userMessageIndex != null ? messages.slice(task.userMessageIndex + 1) : messages,
   );
 
   const parentStartTime = task.turnId?.timestamp ?? fallbackTime;
   const parentEndTime = agent.at(-1)?.timestamp.end ?? parentStartTime;
+  const toRelative = DEBUG_relative(parentStartTime);
 
   const parentConfig: RunTreeConfig = {
     name: "openai.codex",
@@ -382,8 +357,8 @@ async function postTurn(
     run_type: "chain",
     inputs: { messages: user != null ? [user.message] : [] },
     outputs: { messages: agent.map((i) => i.message) },
-    start_time: parentStartTime,
-    end_time: parentEndTime,
+    start_time: toRelative(parentStartTime),
+    end_time: toRelative(parentEndTime),
     extra: {
       metadata: {
         ...task.context,
@@ -399,16 +374,11 @@ async function postTurn(
       },
     },
   };
-  const parent =
-    options?.parentRunTree?.createChild(parentConfig) ??
-    new RunTree(parentConfig);
+  const parent = options?.parentRunTree?.createChild(parentConfig) ?? new RunTree(parentConfig);
 
   PROMISE_QUEUE.push(parent.postRun());
 
-  const fullMessages = mergeMessages([
-    ...getSystemMessage(sessionMeta, task),
-    ...messages,
-  ]);
+  const fullMessages = mergeMessages([...getSystemMessage(sessionMeta, task), ...messages]);
 
   const aiMessageIndicies = fullMessages.reduce<number[]>((acc, item, idx) => {
     if (item.message.role === "ai") acc.push(idx);
@@ -435,32 +405,26 @@ async function postTurn(
 
   for (const output of outputs) {
     const inputMessages = fullMessages.slice(0, output.start);
-    const outputMessages = fullMessages.slice(
-      output.start,
-      output.start + output.length,
-    );
-    const outputStartTime =
-      outputMessages.at(0)?.timestamp.start ?? parentStartTime;
-    const outputEndTime =
-      outputMessages.at(-1)?.timestamp.end ?? outputStartTime;
+    const aiMessage = fullMessages.slice(output.start, output.start + 1);
+    const toolMessages = fullMessages.slice(output.start + 1, output.start + output.length);
 
-    const tokenCounts = findLast(
-      outputMessages,
-      (i) => i.tokenCount != null,
-    )?.tokenCount;
+    const outputStartTime = aiMessage.at(0)?.timestamp.start ?? parentStartTime;
+    const outputEndTime = aiMessage.at(-1)?.timestamp.end ?? outputStartTime;
+
+    const tokenCounts = findLast(aiMessage, (i) => i.tokenCount != null)?.tokenCount;
 
     const subagentThreads = findLast(
-      outputMessages,
+      aiMessage,
       (i) => i.subagentThreads.length > 0,
     )?.subagentThreads;
 
-    const child = parent.createChild({
+    const llmChild = parent.createChild({
       name: "openai.codex.turn",
       run_type: "llm",
-      start_time: outputStartTime,
-      end_time: outputEndTime,
+      start_time: toRelative(outputStartTime),
+      end_time: toRelative(outputEndTime),
       inputs: { messages: inputMessages.map((i) => i.message) },
-      outputs: { messages: outputMessages.map((i) => i.message) },
+      outputs: { messages: aiMessage.map((i) => i.message) },
       extra: {
         metadata: {
           ls_model_type: "chat",
@@ -471,24 +435,50 @@ async function postTurn(
         },
       },
     });
-    PROMISE_QUEUE.push(child.postRun());
+    PROMISE_QUEUE.push(llmChild.postRun());
+
+    for (const toolMessage of toolMessages) {
+      if (toolMessage.message.role !== "tool") continue;
+      // find tool call from the AI message
+
+      const toolCall = aiMessage
+        .at(0)
+        ?.message.content.find(
+          (c) => c.type === "tool_call" && c.id === toolMessage.message.tool_call_id,
+        );
+
+      if (toolCall == null) continue;
+      const otherOutputMessageChild = parent.createChild({
+        name: (toolCall.name as string) ?? "openai.codex.tool",
+        run_type: "tool",
+        start_time: toRelative(toolMessage.timestamp.start),
+        end_time: toRelative(toolMessage.timestamp.end),
+        inputs: { input: toolCall.args },
+        outputs: { messages: [toolMessage.message] },
+        extra: {
+          metadata: {
+            ls_model_type: "chat",
+            ls_provider: sessionMeta?.model_provider,
+            ls_model_name: task.context?.model,
+            ls_invocation_params: task.context,
+            usage_metadata: getUsageMetadata(toolMessage.tokenCount),
+          },
+        },
+      });
+      PROMISE_QUEUE.push(otherOutputMessageChild.postRun());
+    }
 
     for (const subagentThread of subagentThreads ?? []) {
-      const subagentFile = await findRolloutFileByThreadId(
-        rolloutFile,
-        subagentThread,
-      );
+      const subagentFile = await findRolloutFileByThreadId(rolloutFile, subagentThread);
 
       if (subagentFile == null) {
-        process.stderr.write(
-          `Could not locate rollout file for subagent thread ${subagentThread}`,
-        );
+        process.stderr.write(`Could not locate rollout file for subagent thread ${subagentThread}`);
         process.stderr.write("\n");
         continue;
       }
 
       await convertToRunTree(subagentFile, {
-        parentRunTree: child,
+        parentRunTree: llmChild,
         client: options?.client,
       });
     }
@@ -518,7 +508,8 @@ export async function convertToRunTree(
   // Turns that have already been uploaded in a previous hook invocation for the
   // same rollout file. Used to avoid replaying completed turns when the user
   // resumes or continues a conversation.
-  const uploadedTurnIds = await loadUploadedTurnIds(rolloutFile);
+  // const uploadedTurnIds = await loadUploadedTurnIds(rolloutFile);
+  const uploadedTurnIds = new Set();
 
   for (const { type, payload, timestamp } of await loadSession(rolloutFile)) {
     if (type === "session_meta") {
