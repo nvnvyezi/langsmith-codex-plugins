@@ -419,20 +419,28 @@ async function postTurn(
 
     for (const toolMessage of toolMessages) {
       if (toolMessage.message.role !== "tool") continue;
-      // find tool call from the AI message
+      const toolCallId =
+        typeof toolMessage.message.tool_call_id === "string"
+          ? toolMessage.message.tool_call_id
+          : undefined;
 
       const toolCall = aiMessage
         .at(0)
-        ?.message.content.find(
-          (c) => c.type === "tool_call" && c.id === toolMessage.message.tool_call_id,
-        );
+        ?.message.content.find((c) => c.type === "tool_call" && c.id === toolCallId);
 
-      if (toolCall == null) continue;
+      if (toolCallId == null || toolCall == null) continue;
+
+      // Ignore tool calls that don't have a tool call id
+      const toolCallTimings = task.toolCallTimings?.[toolCallId] ?? [];
+
+      const min = Math.min(toolMessage.timestamp.start, ...toolCallTimings);
+      const max = Math.max(toolMessage.timestamp.end, ...toolCallTimings);
+
       const otherOutputMessageChild = parent.createChild({
         name: (toolCall.name as string) ?? "openai.codex.tool",
         run_type: "tool",
-        start_time: toRelative(toolMessage.timestamp.start),
-        end_time: toRelative(toolMessage.timestamp.end),
+        start_time: toRelative(min),
+        end_time: toRelative(max),
         inputs: { input: toolCall.args },
         outputs: { messages: [toolMessage.message] },
         extra: {
@@ -489,6 +497,7 @@ export async function convertToRunTree(
       userMessageIndex: undefined,
       context: undefined,
       tokenCount: undefined,
+      toolCallTimings: {},
     };
   }
 
@@ -535,10 +544,19 @@ export async function convertToRunTree(
     }
 
     if (type === "event_msg") {
+      const eventTime = Date.parse(timestamp);
+
       if (payload.type === "task_started") {
         // TODO: should we try to flush?
         task = createTask();
-        task.turnId = { id: payload.turn_id, timestamp: Date.parse(timestamp) };
+        task.turnId = { id: payload.turn_id, timestamp: eventTime };
+      }
+
+      if (typeof payload.call_id === "string") {
+        task ??= createTask();
+        task.toolCallTimings ??= {};
+        task.toolCallTimings[payload.call_id] ??= [];
+        task.toolCallTimings[payload.call_id].push(eventTime);
       }
 
       if (payload.type === "token_count") {

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { convertToRunTree } from "../src/trace.ts";
+import { convertToRunTree } from "../src/trace.js";
 import { vol } from "memfs";
 
 import * as path from "node:path";
 import { Client } from "langsmith";
+import { mockClient } from "./utils/mock_client.js";
+import { asTree, getAssumedTreeFromCalls } from "./utils/tree.js";
+
+const Run = (props: Record<string, unknown>) => null;
 
 async function preloadTestFiles() {
   const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
@@ -13,7 +17,7 @@ async function preloadTestFiles() {
 
   const fileDir = await fs.readdir(sourceDir);
 
-  const testFiles = {};
+  const testFiles: Record<string, string> = {};
 
   for (const file of fileDir) {
     if (!file.endsWith(".jsonl")) continue;
@@ -35,6 +39,68 @@ vi.mock("node:fs", async () => {
 
 beforeEach(() => vol.reset());
 afterEach(() => vi.unstubAllEnvs());
+
+it.only("sets tool run duration from matching call intervals", async () => {
+  const { client, callSpy } = mockClient();
+
+  vol.fromJSON(await preloadTestFiles());
+
+  const taskStartedAt = Date.parse("2026-04-23T20:21:10.809Z");
+  await convertToRunTree(
+    path.join("/home/codex-user/.codex/sessions/2026/04/23/rollout-editing.jsonl"),
+    {
+      client,
+      projectName: "codex",
+      debugNow: { now: taskStartedAt, startTime: taskStartedAt },
+    },
+  );
+
+  await expect(getAssumedTreeFromCalls(callSpy.mock.calls, client)).resolves.toMatchObject(
+    asTree((run) => {
+      run`openai.codex:0`(
+        { run_type: "chain" },
+        run`openai.codex.turn:1`({
+          run_type: "llm",
+          inputs: {
+            messages: expect.arrayContaining([
+              {
+                role: "user",
+                content: expect.arrayContaining([
+                  { type: "text", text: "Create a sample app that does cowsay" },
+                ]),
+              },
+            ]),
+          },
+          outputs: {
+            messages: [
+              {
+                role: "ai",
+                content: expect.arrayContaining([
+                  {
+                    type: "text",
+                    text: "I’m going to inspect the repo structure first so I can add a minimal sample app in the right stack instead of guessing.",
+                  },
+                ]),
+              },
+            ],
+          },
+        }),
+        run`exec_command:2`({ run_type: "tool" }),
+        run`exec_command:3`({ run_type: "tool" }),
+        run`exec_command:4`({ run_type: "tool" }),
+        run`openai.codex.turn:5`({ run_type: "llm" }),
+        run`exec_command:6`({ run_type: "tool" }),
+        run`exec_command:7`({ run_type: "tool" }),
+        run`openai.codex.turn:8`({ run_type: "llm" }),
+        run`apply_patch:9`({ run_type: "tool" }),
+        run`openai.codex.turn:10`({ run_type: "llm" }),
+        run`exec_command:11`({ run_type: "tool" }),
+        run`exec_command:12`({ run_type: "tool" }),
+        run`openai.codex.turn:13`({ run_type: "llm" }),
+      );
+    }),
+  );
+});
 
 it("editing", async () => {
   const client = new Client();

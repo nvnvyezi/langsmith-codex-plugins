@@ -1070,6 +1070,7 @@ export type Task = {
   userMessageIndex: number | undefined;
   context: { model: string; [key: string]: unknown } | undefined;
   tokenCount: { total_token_usage?: TokenCount; model_context_window?: number } | undefined;
+  toolCallTimings?: { [callId: string]: number[] };
 };
 
 export type StandardMessage = {
