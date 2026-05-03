@@ -1,4 +1,4 @@
-import type { LineSchema, ResponseItem } from "./types";
+import type { LineSchema, ResponseItem } from "./types.js";
 import { Client, RunTreeConfig } from "langsmith";
 import { RunTree } from "langsmith/run_trees";
 
@@ -12,7 +12,7 @@ import type {
   MergedMessage,
   Task,
   StandardMessage,
-} from "./types";
+} from "./types.js";
 
 const DEBUG_relative = (startTime: number, now = Date.now()) => {
   return (timestamp: number) => {

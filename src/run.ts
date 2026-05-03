@@ -1,9 +1,9 @@
 import { Client } from "langsmith";
 import { getConfig } from "./config.js";
-import { convertToRunTree } from "./upload.js";
+import { convertToRunTree } from "./trace.js";
 import { readStdin } from "./utils/stdin.js";
 
-async function main() {
+export async function runHook() {
   const content = await readStdin<{
     session_id: string;
     turn_id: string | null;
@@ -23,5 +23,3 @@ async function main() {
     replicas: config.replicas,
   });
 }
-
-main();

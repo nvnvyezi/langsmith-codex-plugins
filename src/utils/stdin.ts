@@ -6,8 +6,9 @@ export function readStdin<T>() {
     process.stdin.on("end", () => {
       try {
         resolve(JSON.parse(buffer));
-      } catch (error) {
-        reject(new Error(`Error parsing hook stdin: ${error.message}`));
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        reject(new Error(`Error parsing hook stdin: ${errorMessage}`));
       }
     });
     process.stdin.once("error", reject);

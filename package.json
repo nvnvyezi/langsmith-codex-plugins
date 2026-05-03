@@ -26,7 +26,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsdown",
     "test": "vitest",
     "format": "oxfmt",
     "lint": "oxfmt --check && tsc --noEmit",
@@ -46,6 +46,7 @@
     "@types/node": "^25.6.0",
     "memfs": "^4.57.2",
     "oxfmt": "^0.46.0",
+    "tsdown": "^0.21.10",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   },
