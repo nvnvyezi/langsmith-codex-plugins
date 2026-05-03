@@ -306,8 +306,11 @@ async function postTurn(
   }: {
     rolloutFile: string;
     options?: {
-      parentRunTree?: RunTree;
       client?: Client;
+      projectName?: string;
+      metadata?: Record<string, unknown>;
+      replicas?: RunTreeConfig["replicas"];
+      parentRunTree?: RunTree;
       sessionsRoot?: string;
       debugNow?: { now: number; startTime: number };
     };
@@ -358,6 +361,7 @@ async function postTurn(
   const parentConfig: RunTreeConfig = {
     name: "openai.codex",
     client: options?.client,
+    project_name: options?.projectName,
     run_type: "chain",
     inputs: { messages: user != null ? [user.message] : [] },
     outputs: { messages: agent.map((i) => i.message) },
@@ -365,6 +369,7 @@ async function postTurn(
     end_time: toRelative(parentEndTime),
     extra: {
       metadata: {
+        ...options?.metadata,
         ...task.context,
         codex_cli_version: sessionMeta?.cli_version,
         turn_id: task.turnId?.id,
@@ -431,6 +436,7 @@ async function postTurn(
       outputs: { messages: aiMessage.map((i) => i.message) },
       extra: {
         metadata: {
+          ...options?.metadata,
           ls_model_type: "chat",
           ls_provider: sessionMeta?.model_provider,
           ls_model_name: task.context?.model,
@@ -461,6 +467,7 @@ async function postTurn(
         outputs: { messages: [toolMessage.message] },
         extra: {
           metadata: {
+            ...options?.metadata,
             ls_model_type: "chat",
             ls_provider: sessionMeta?.model_provider,
             ls_model_name: task.context?.model,
@@ -486,10 +493,9 @@ async function postTurn(
       }
 
       await convertToRunTree(subagentFile, {
+        ...options,
         parentRunTree: parent,
-        client: options?.client,
-        sessionsRoot: options?.sessionsRoot,
-        debugNow: debugNow,
+        debugNow,
       });
     }
   }
@@ -500,6 +506,9 @@ export async function convertToRunTree(
   options?: {
     parentRunTree?: RunTree;
     client?: Client;
+    metadata?: Record<string, unknown>;
+    replicas?: RunTreeConfig["replicas"];
+    projectName?: string;
     sessionsRoot?: string;
     debugNow?: { now: number; startTime: number };
   },

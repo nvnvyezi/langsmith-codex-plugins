@@ -1,4 +1,5 @@
 import { Client } from "langsmith";
+import { getConfig } from "./config.js";
 import { convertToRunTree } from "./upload.js";
 import { readStdin } from "./utils/stdin.js";
 
@@ -10,12 +11,17 @@ async function main() {
     hook_event_name: "UserPromptSubmit" | "Stop";
   }>();
 
-  const client = new Client({
-    apiKey: process.env.LANGSMITH_API_KEY,
-    apiUrl: process.env.LANGSMITH_API_URL,
-  });
+  const config = await getConfig();
 
-  await convertToRunTree(content.transcript_path, { client });
+  // Skip entirely if tracing is disabled
+  if (!config.enabled) return;
+
+  await convertToRunTree(content.transcript_path, {
+    client: new Client({ apiKey: config.api_key, apiUrl: config.api_url }),
+    projectName: config.project,
+    metadata: config.metadata,
+    replicas: config.replicas,
+  });
 }
 
 main();
