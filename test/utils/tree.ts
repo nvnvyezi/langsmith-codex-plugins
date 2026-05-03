@@ -107,5 +107,12 @@ export function asTree(cb: (run: MagicRun) => void): {
   }
 
   cb(run);
-  return acc;
+  const nodeOrder = new Map(acc.nodes.map((id, idx) => [id, idx]));
+
+  return {
+    ...acc,
+    edges: [...acc.edges].sort(
+      ([, left], [, right]) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0),
+    ),
+  };
 }
