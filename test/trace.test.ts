@@ -36,13 +36,13 @@ vi.mock("node:fs", async () => {
 beforeEach(() => vol.reset());
 afterEach(() => vi.unstubAllEnvs());
 
-it.only("editing", async () => {
+it("editing", async () => {
   const client = new Client();
   vol.fromJSON(await preloadTestFiles());
 
   await convertToRunTree(
     path.join("/home/codex-user/.codex/sessions/2026/04/23/rollout-editing.jsonl"),
-    { client },
+    { client, projectName: "codex" },
   );
 
   // Sidecar file is created
@@ -60,7 +60,7 @@ it("attachments", async () => {
 
   await convertToRunTree(
     path.join("/home/codex-user/.codex/sessions/2026/04/23/rollout-attachments.jsonl"),
-    { client },
+    { client, projectName: "codex" },
   );
   // Sidecar file is created
   expect(vol.toJSON()).toMatchObject({
@@ -76,13 +76,13 @@ it("subagents", async () => {
   vol.fromJSON(await preloadTestFiles());
 
   await convertToRunTree(
-    path.join("/home/codex-user/.codex/sessions/2026/04/23/rollout-subagents.root.jsonl"),
-    { client },
+    path.join("/home/codex-user/.codex/sessions/2026/04/23/rollout-subagents.jsonl"),
+    { client, projectName: "codex" },
   );
 
   // Sidecar file is created
   expect(vol.toJSON()).toMatchObject({
-    "/home/codex-user/.codex/sessions/2026/04/23/rollout-subagents.root.jsonl.langsmith":
+    "/home/codex-user/.codex/sessions/2026/04/23/rollout-subagents.jsonl.langsmith":
       expect.stringContaining("019dbc03-4aa2-72a0-8190-c747168c8f1d"),
   });
 
