@@ -5,8 +5,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tsx --env-file=/Users/duongtat/Work/ls-codex/.env /Users/duongtat/Work/ls-codex/src/hook.ts",
-            "timeout": 30
+            "command": "node ./dist/index.mjs",
+            "timeout": 30,
+            "statusMessage": "Uploading Codex trace to LangSmith"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/index.mjs",
+            "timeout": 30,
+            "statusMessage": "Uploading Codex trace to LangSmith"
           }
         ]
       }

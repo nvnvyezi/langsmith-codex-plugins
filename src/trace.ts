@@ -3,7 +3,8 @@ import { Client, RunTreeConfig, RunTree } from "langsmith";
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-
+import { findLast } from "./utils/findLast.js";
+import { loadUploadedTurnIds, markTurnUploaded } from "./sidecar.js";
 import type {
   Session,
   TokenCount,
@@ -20,13 +21,6 @@ const DEBUG_relative = (startTime: number, now = Date.now()) => {
   };
 };
 
-const findLast = <T>(array: T[], predicate: (item: T) => boolean): T | undefined => {
-  for (let i = array.length - 1; i >= 0; i--) {
-    if (predicate(array[i])) return array[i];
-  }
-  return undefined;
-};
-
 async function loadSession(name: string) {
   const data = await fs.readFile(name, "utf-8");
 
@@ -38,38 +32,15 @@ async function loadSession(name: string) {
   return result;
 }
 
-// Sidecar file that records turn ids already uploaded for a given rollout so
-// that resuming / continuing a conversation does not replay completed turns.
-const UPLOADED_SIDECAR_SUFFIX = ".ls-uploaded";
-
-function getUploadedSidecarPath(rolloutFile: string): string {
-  return `${rolloutFile}${UPLOADED_SIDECAR_SUFFIX}`;
-}
-
-async function loadUploadedTurnIds(rolloutFile: string): Promise<Set<string>> {
-  try {
-    const data = await fs.readFile(getUploadedSidecarPath(rolloutFile), "utf-8");
-    return new Set(data.split("\n").filter(Boolean));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
-    throw error;
-  }
-}
-
-async function markTurnUploaded(rolloutFile: string, turnId: string): Promise<void> {
-  await fs.appendFile(getUploadedSidecarPath(rolloutFile), `${turnId}\n`, "utf-8");
-}
-
 // Rollout files are stored at `<sessionsRoot>/YYYY/MM/DD/rollout-<ts>-<threadId>.jsonl`.
 // Given the path of the parent rollout file we walk up to the sessions root and
 // recursively look for a file whose name ends with the subagent's thread id.
 async function findRolloutFileByThreadId(
   parentFileName: string,
   threadId: string,
-  sessionsRoot?: string,
 ): Promise<string | undefined> {
   const suffix = `-${threadId}.jsonl`;
-  const root = sessionsRoot ?? path.resolve(path.dirname(parentFileName), "../../..");
+  const root = path.resolve(path.dirname(parentFileName), "../../..");
 
   async function walk(dir: string): Promise<string | undefined> {
     let entries: import("node:fs").Dirent[];
@@ -310,7 +281,6 @@ async function postTurn(
       metadata?: Record<string, unknown>;
       replicas?: RunTreeConfig["replicas"];
       parentRunTree?: RunTree;
-      sessionsRoot?: string;
       debugNow?: { now: number; startTime: number };
     };
   },
@@ -479,11 +449,7 @@ async function postTurn(
     }
 
     for (const subagentThread of subagentThreads ?? []) {
-      const subagentFile = await findRolloutFileByThreadId(
-        rolloutFile,
-        subagentThread,
-        options?.sessionsRoot,
-      );
+      const subagentFile = await findRolloutFileByThreadId(rolloutFile, subagentThread);
 
       if (subagentFile == null) {
         process.stderr.write(`Could not locate rollout file for subagent thread ${subagentThread}`);
@@ -528,8 +494,7 @@ export async function convertToRunTree(
   // Turns that have already been uploaded in a previous hook invocation for the
   // same rollout file. Used to avoid replaying completed turns when the user
   // resumes or continues a conversation.
-  // const uploadedTurnIds = await loadUploadedTurnIds(rolloutFile);
-  const uploadedTurnIds = new Set();
+  const uploadedTurnIds = await loadUploadedTurnIds(rolloutFile);
 
   for (const { type, payload, timestamp } of await loadSession(rolloutFile)) {
     if (type === "session_meta") {

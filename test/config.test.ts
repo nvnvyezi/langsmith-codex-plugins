@@ -17,17 +17,14 @@ vi.mock("node:fs", async () => {
 const HOME = "/home/codex-user";
 const CWD = "/workspace/repo";
 
-function writeConfigFiles(files: Partial<Record<"global" | "local", Record<string, unknown>>>) {
-  vol.fromJSON(
-    Object.fromEntries(
-      Object.entries(files).map(([scope, contents]) => [
-        scope === "global"
-          ? path.join(HOME, ".codex", "langsmith.json")
-          : path.join(CWD, ".codex", "langsmith.json"),
-        JSON.stringify(contents),
-      ]),
-    ),
-  );
+function writeConfigFiles(files: {
+  global?: Partial<Record<string, unknown>>;
+  local?: Partial<Record<string, unknown>>;
+}) {
+  vol.fromJSON({
+    [path.join(HOME, ".codex", "langsmith.json")]: JSON.stringify(files.global),
+    [path.join(CWD, ".codex", "langsmith.json")]: JSON.stringify(files.local),
+  });
 }
 
 beforeEach(() => vol.reset());
