@@ -1,15 +1,14 @@
 {
-  "name": "langchain-codex-plugins",
+  "name": "langsmith-codex-plugins",
   "interface": {
-    "displayName": "LangChain Codex Plugins"
+    "displayName": "Langsmith Codex Plugins"
   },
   "plugins": [
     {
-      "name": "langsmith-codex",
+      "name": "tracing",
       "source": {
-        "source": "url",
-        "url": "https://github.com/langchain-ai/langsmith-codex-plugins.git",
-        "ref": "main"
+        "source": "local",
+        "path": "./plugins/tracing"
       },
       "policy": {
         "installation": "AVAILABLE",

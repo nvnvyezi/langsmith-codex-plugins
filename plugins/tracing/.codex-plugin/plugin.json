@@ -1,9 +1,10 @@
 {
-  "name": "langsmith-codex-plugins",
+  "name": "tracing",
   "version": "0.0.1",
   "description": "Trace OpenAI Codex rollout transcripts to LangSmith.",
   "author": {
     "name": "LangChain",
+    "email": "support@langchain.com",
     "url": "https://www.langchain.com"
   },
   "homepage": "https://github.com/langchain-ai/langsmith-codex-plugins#readme",
@@ -12,7 +13,7 @@
   "keywords": ["codex", "hooks", "langsmith", "observability", "tracing"],
   "hooks": "./hooks/hooks.json",
   "interface": {
-    "displayName": "LangSmith Codex Hook",
+    "displayName": "Tracing",
     "shortDescription": "Trace Codex turns to LangSmith",
     "longDescription": "Uploads completed OpenAI Codex rollout transcripts to LangSmith so teams can inspect Codex sessions as run trees.",
     "developerName": "LangChain",
@@ -20,11 +21,8 @@
     "capabilities": ["Read"],
     "websiteURL": "https://www.langchain.com/langsmith",
     "privacyPolicyURL": "https://www.langchain.com/privacy-policy",
-    "termsOfServiceURL": "https://smith.langchain.com/terms-of-service.pdf",
-    "defaultPrompt": [
-      "Trace my current Codex task to LangSmith",
-      "Help me enable LangSmith tracing for Codex"
-    ],
+    "termsOfServiceURL": "https://www.langchain.com/terms-of-service",
+    "defaultPrompt": [],
     "brandColor": "#0E7C66",
     "screenshots": []
   }
