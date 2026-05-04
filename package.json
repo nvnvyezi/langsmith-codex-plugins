@@ -31,7 +31,10 @@
     "build": "tsdown --config plugins/tracing/tsdown.config.ts",
     "test": "vitest",
     "format": "oxfmt",
-    "lint": "oxfmt --check && tsc --noEmit"
+    "lint:dist": "pnpm run build && git diff --exit-code -- plugins/tracing/dist/index.mjs",
+    "lint:oxfmt": "oxfmt --check",
+    "lint:tsc": "tsc --noEmit",
+    "lint": "pnpm run lint:oxfmt && pnpm run lint:tsc && pnpm run lint:dist"
   },
   "dependencies": {
     "langsmith": "^0.6.0",
