@@ -1,5 +1,5 @@
 {
-  "name": "langsmith-codex",
+  "name": "langsmith-codex-plugins",
   "version": "0.0.1",
   "description": "Trace OpenAI Codex rollout transcripts to LangSmith.",
   "author": {

@@ -333,6 +333,7 @@ async function postTurn(
     client: options?.client,
     project_name: options?.projectName,
     run_type: "chain",
+    replicas: options?.replicas,
     inputs: { messages: user != null ? [user.message] : [] },
     outputs: { messages: agent.map((i) => i.message) },
     start_time: toRelative(parentStartTime),

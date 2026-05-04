@@ -2,7 +2,7 @@ import * as path from "node:path";
 
 import { vol } from "memfs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { getConfig } from "../src/config.ts";
+import { getConfig } from "../src/config.js";
 
 vi.mock("node:fs/promises", async () => {
   const { fs } = await import("memfs");

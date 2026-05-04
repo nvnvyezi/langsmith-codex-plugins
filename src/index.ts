@@ -8,7 +8,7 @@ export async function runHook() {
     session_id: string;
     turn_id: string | null;
     transcript_path: string;
-    hook_event_name: "UserPromptSubmit" | "Stop";
+    hook_event_name: "Stop";
   }>();
 
   const config = await getConfig();

@@ -2,7 +2,7 @@ import * as path from "node:path";
 
 import { vol } from "memfs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { loadUploadedTurnIds, markTurnUploaded } from "../src/sidecar.ts";
+import { loadUploadedTurnIds, markTurnUploaded } from "../src/sidecar.js";
 
 vi.mock("node:fs/promises", async () => {
   const { fs } = await import("memfs");

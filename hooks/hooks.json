@@ -11,18 +11,6 @@
           }
         ]
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/index.mjs",
-            "timeout": 30,
-            "statusMessage": "Uploading Codex trace to LangSmith"
-          }
-        ]
-      }
     ]
   }
 }
