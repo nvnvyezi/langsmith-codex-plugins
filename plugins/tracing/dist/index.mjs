@@ -11761,11 +11761,6 @@ async function markTurnUploaded(rolloutFile, turnId) {
 }
 //#endregion
 //#region src/trace.ts
-const DEBUG_relative = (startTime, now = Date.now()) => {
-	return (timestamp) => {
-		return now + (timestamp - startTime);
-	};
-};
 async function loadSession(name) {
 	return (await nodeFsPromises.readFile(name, "utf-8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
@@ -12007,7 +12002,6 @@ async function postTurn(task, sessionMeta, { rolloutFile, options }) {
 		now: Date.now(),
 		startTime: parentStartTime
 	};
-	const toRelative = DEBUG_relative(debugNow.startTime, debugNow.now);
 	const parentConfig = {
 		name: "openai.codex",
 		client: options?.client,
@@ -12016,8 +12010,8 @@ async function postTurn(task, sessionMeta, { rolloutFile, options }) {
 		replicas: options?.replicas,
 		inputs: { messages: user != null ? [user.message] : [] },
 		outputs: { messages: agent.map((i) => i.message) },
-		start_time: toRelative(parentStartTime),
-		end_time: toRelative(parentEndTime),
+		start_time: parentStartTime,
+		end_time: parentEndTime,
 		extra: { metadata: {
 			...options?.metadata,
 			...task.context,
@@ -12062,8 +12056,8 @@ async function postTurn(task, sessionMeta, { rolloutFile, options }) {
 		const llmChild = parent.createChild({
 			name: "openai.codex.turn",
 			run_type: "llm",
-			start_time: toRelative(outputStartTime),
-			end_time: toRelative(outputEndTime),
+			start_time: outputStartTime,
+			end_time: outputEndTime,
 			inputs: { messages: inputMessages.map((i) => i.message) },
 			outputs: { messages: aiMessage.map((i) => i.message) },
 			extra: { metadata: {
@@ -12087,8 +12081,8 @@ async function postTurn(task, sessionMeta, { rolloutFile, options }) {
 			const otherOutputMessageChild = parent.createChild({
 				name: toolCall.name ?? "openai.codex.tool",
 				run_type: "tool",
-				start_time: toRelative(min),
-				end_time: toRelative(max),
+				start_time: min,
+				end_time: max,
 				inputs: { input: toolCall.args },
 				outputs: { messages: [toolMessage.message] },
 				extra: { metadata: {

@@ -14,13 +14,6 @@ import type {
   StandardMessage,
 } from "./types.js";
 
-const DEBUG_relative = (startTime: number, now = Date.now()) => {
-  return (timestamp: number) => {
-    const diff = timestamp - startTime;
-    return now + diff;
-  };
-};
-
 async function loadSession(name: string) {
   const data = await fs.readFile(name, "utf-8");
 
@@ -326,7 +319,6 @@ async function postTurn(
   const parentEndTime = agent.at(-1)?.timestamp.end ?? parentStartTime;
 
   const debugNow = options?.debugNow ?? { now: Date.now(), startTime: parentStartTime };
-  const toRelative = DEBUG_relative(debugNow.startTime, debugNow.now);
 
   const parentConfig: RunTreeConfig = {
     name: "openai.codex",
@@ -336,8 +328,8 @@ async function postTurn(
     replicas: options?.replicas,
     inputs: { messages: user != null ? [user.message] : [] },
     outputs: { messages: agent.map((i) => i.message) },
-    start_time: toRelative(parentStartTime),
-    end_time: toRelative(parentEndTime),
+    start_time: parentStartTime,
+    end_time: parentEndTime,
     extra: {
       metadata: {
         ...options?.metadata,
@@ -401,8 +393,8 @@ async function postTurn(
     const llmChild = parent.createChild({
       name: "openai.codex.turn",
       run_type: "llm",
-      start_time: toRelative(outputStartTime),
-      end_time: toRelative(outputEndTime),
+      start_time: outputStartTime,
+      end_time: outputEndTime,
       inputs: { messages: inputMessages.map((i) => i.message) },
       outputs: { messages: aiMessage.map((i) => i.message) },
       extra: {
@@ -440,8 +432,8 @@ async function postTurn(
       const otherOutputMessageChild = parent.createChild({
         name: (toolCall.name as string) ?? "openai.codex.tool",
         run_type: "tool",
-        start_time: toRelative(min),
-        end_time: toRelative(max),
+        start_time: min,
+        end_time: max,
         inputs: { input: toolCall.args },
         outputs: { messages: [toolMessage.message] },
         extra: {
