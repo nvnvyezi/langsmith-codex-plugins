@@ -460,8 +460,6 @@ async function postTurn(
       const subagentFile = await findRolloutFileByThreadId(rolloutFile, subagentThread);
 
       if (subagentFile == null) {
-        process.stderr.write(`Could not locate rollout file for subagent thread ${subagentThread}`);
-        process.stderr.write("\n");
         continue;
       }
 
