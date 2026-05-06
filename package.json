@@ -1,6 +1,6 @@
 {
   "name": "@langchain/langsmith-codex-plugins",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "OpenAI Codex Plugins for LangSmith",
   "keywords": [
     "codex",
