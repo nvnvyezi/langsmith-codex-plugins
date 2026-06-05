@@ -15,7 +15,8 @@ A Codex plugin that traces agent turns, tool calls, model metadata, and subagent
 Add the marketplace via Codex CLI:
 
 ```bash
-codex plugin marketplace add langchain-ai/langsmith-codex-plugins
+codex plugin marketplace add nvnvyezi/langsmith-codex-plugins
+codex plugin add tracing@langsmith-codex-plugins
 ```
 
 Then enable plugin hooks and the Tracing plugin globally in `~/.codex/config.toml` or only for a specific project in `.codex/config.toml`:
