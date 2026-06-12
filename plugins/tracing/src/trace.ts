@@ -721,6 +721,7 @@ export async function convertToRunTree(
   let sessionMeta: Session | undefined;
   let task: Task | undefined;
   let syntheticSkillCallIdx = 0;
+  let syntheticEventCallIdx = 0;
   let syntheticSkillEventKeys = new Set<string>();
   const skillDefinitions = new Map<string, unknown>();
 
@@ -763,6 +764,28 @@ export async function convertToRunTree(
     };
   }
 
+  function addSyntheticEvent(
+    currentTask: Task,
+    eventTime: number,
+    name: string,
+    outputs: Record<string, unknown>,
+    options?: {
+      namespace?: string;
+      input?: unknown;
+    },
+  ) {
+    const callId = `event_${currentTask.turnId?.id ?? "unknown"}_${syntheticEventCallIdx++}`;
+    currentTask.toolCalls[callId] = {
+      name,
+      namespace: options?.namespace ?? "event",
+      input: options?.input,
+      isSkill: false,
+      error: undefined,
+      timings: [eventTime],
+      outputs: { ...outputs, status: "completed" },
+    };
+  }
+
   // Turns that have already been uploaded in a previous hook invocation for the
   // same rollout file. Used to avoid replaying completed turns when the user
   // resumes or continues a conversation.
@@ -776,6 +799,15 @@ export async function convertToRunTree(
         base_instructions: payload.base_instructions?.text,
         cli_version: payload.cli_version,
       };
+    }
+
+    if (type === "compacted") {
+      task ??= createTask();
+      addSyntheticEvent(task, Date.parse(timestamp), "event.compacted", {
+        source: "compacted",
+        message: payload.message,
+        replacement_history: payload.replacement_history,
+      });
     }
 
     if (type === "response_item") {
@@ -899,6 +931,23 @@ export async function convertToRunTree(
         toolCall.name ??= payload.type;
         toolCall.input ??= payload.arguments;
       }
+
+      if (payload.type === "web_search_call") {
+        addSyntheticEvent(
+          task,
+          Date.parse(timestamp),
+          "web.search_call",
+          {
+            source: "response_item.web_search_call",
+            status: payload.status,
+            action: payload.action,
+          },
+          {
+            namespace: "web",
+            input: payload.action,
+          },
+        );
+      }
     }
 
     if (type === "turn_context") {
@@ -1015,6 +1064,38 @@ export async function convertToRunTree(
         task ??= createTask();
         addSyntheticSkillEvent(task, eventTime, "skill.skills_update_available", {
           update_available: true,
+        });
+      }
+
+      if (payload.type === "agent_message") {
+        task ??= createTask();
+        addSyntheticEvent(task, eventTime, "event.agent_message", {
+          source: "event_msg.agent_message",
+          message: payload.message,
+          phase: payload.phase,
+          memory_citation: payload.memory_citation,
+        });
+      }
+
+      if (payload.type === "user_message") {
+        task ??= createTask();
+        addSyntheticEvent(task, eventTime, "event.user_message", {
+          source: "event_msg.user_message",
+          message: payload.message,
+          images: payload.images,
+          local_images: payload.local_images,
+          text_elements: payload.text_elements,
+        });
+      }
+
+      if (payload.type === "context_compacted") {
+        task ??= createTask();
+        addSyntheticEvent(task, eventTime, "event.context_compacted", {
+          source: "event_msg.context_compacted",
+          trigger: payload.trigger,
+          summary: payload.summary,
+          token_count_before: payload.token_count_before,
+          token_count_after: payload.token_count_after,
         });
       }
 

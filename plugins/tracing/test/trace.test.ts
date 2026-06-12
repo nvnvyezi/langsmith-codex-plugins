@@ -6,6 +6,48 @@ import * as path from "node:path";
 import { mockClient } from "./utils/mock_client.js";
 import { asTree, getAssumedTreeFromCalls } from "./utils/tree.js";
 
+function withoutEventRuns(tree: {
+  nodes: string[];
+  edges: Array<[string, string]>;
+  data: Record<string, unknown>;
+}) {
+  const isEventNode = (id: string) => id.startsWith("event.");
+  return {
+    nodes: tree.nodes.filter((id) => !isEventNode(id)),
+    edges: tree.edges.filter(([source, target]) => !isEventNode(source) && !isEventNode(target)),
+    data: Object.fromEntries(Object.entries(tree.data).filter(([id]) => !isEventNode(id))),
+  };
+}
+
+function renumberRuns(tree: {
+  nodes: string[];
+  edges: Array<[string, string]>;
+  data: Record<string, unknown>;
+}) {
+  const counts = new Map<string, number>();
+  const idMap = new Map<string, string>();
+  const nextId = (id: string) => {
+    const name = id.split(":")[0];
+    const nextCount = counts.get(name) ?? 0;
+    counts.set(name, nextCount + 1);
+    const normalized = `${name}:${nextCount}`;
+    idMap.set(id, normalized);
+    return normalized;
+  };
+
+  const nodes = tree.nodes.map(nextId);
+  const edges = tree.edges.map(([source, target]) => [
+    idMap.get(source) ?? nextId(source),
+    idMap.get(target) ?? nextId(target),
+  ]) as Array<[string, string]>;
+
+  const data = Object.fromEntries(
+    Object.entries(tree.data).map(([id, value]) => [idMap.get(id) ?? nextId(id), value]),
+  );
+
+  return { nodes, edges, data };
+}
+
 async function preloadTestFiles() {
   const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
 
@@ -56,8 +98,10 @@ it("editing", async () => {
   });
 
   // Assert on trace output
-  await expect(getAssumedTreeFromCalls(callSpy.mock.calls, client)).resolves.toMatchObject(
-    asTree((run) => {
+  const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+  expect(renumberRuns(withoutEventRuns(tree))).toMatchObject(
+    renumberRuns(
+      asTree((run) => {
       run`openai.codex:0`(
         {
           run_type: "chain",
@@ -394,7 +438,8 @@ it("editing", async () => {
           },
         }),
       );
-    }),
+      }),
+    ),
   );
 });
 
@@ -415,8 +460,10 @@ it("attachments", async () => {
   await client.awaitPendingTraceBatches();
 
   // Assert on trace output
-  await expect(getAssumedTreeFromCalls(callSpy.mock.calls, client)).resolves.toMatchObject(
-    asTree((run) => {
+  const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+  expect(renumberRuns(withoutEventRuns(tree))).toMatchObject(
+    renumberRuns(
+      asTree((run) => {
       run`openai.codex:0`(
         {
           run_type: "chain",
@@ -515,7 +562,8 @@ it("attachments", async () => {
           },
         }),
       );
-    }),
+      }),
+    ),
   );
 });
 
@@ -537,8 +585,10 @@ it("subagents", async () => {
   await client.awaitPendingTraceBatches();
 
   // Assert on trace output
-  await expect(getAssumedTreeFromCalls(callSpy.mock.calls, client)).resolves.toMatchObject(
-    asTree((run) => {
+  const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+  expect(renumberRuns(withoutEventRuns(tree))).toMatchObject(
+    renumberRuns(
+      asTree((run) => {
       run`openai.codex:0`(
         {
           run_type: "chain",
@@ -928,7 +978,8 @@ it("subagents", async () => {
           },
         }),
       );
-    }),
+      }),
+    ),
   );
 });
 
@@ -1544,6 +1595,162 @@ it("skill read via exec_command is reported", async () => {
       metadata: expect.objectContaining({
         ls_tool_category: "skill",
         ls_tool_namespace: "skill",
+      }),
+    },
+  });
+});
+
+it("event and web search logs are reported as tool runs", async () => {
+  const { client, callSpy } = mockClient();
+
+  const rolloutPath =
+    "/home/codex-user/.codex/sessions/2026/06/12/rollout-event-web-search.jsonl";
+  const lines = [
+    {
+      timestamp: "2026-06-12T06:17:56.000Z",
+      type: "session_meta",
+      payload: {
+        id: "thread-event-web-search",
+        timestamp: "2026-06-12T06:17:56.000Z",
+        cwd: "/tmp",
+        originator: "codex",
+        cli_version: "0.125.0",
+        source: "test",
+        model_provider: "openai",
+        base_instructions: { text: "You are test assistant." },
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.010Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: "turn-event-web-search" },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.020Z",
+      type: "turn_context",
+      payload: {
+        cwd: "/tmp",
+        approval_policy: "never",
+        sandbox_policy: "workspace-write",
+        model: "gpt-5.4",
+        summary: [],
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.030Z",
+      type: "event_msg",
+      payload: {
+        type: "user_message",
+        message: "探索日志",
+        images: [],
+        local_images: [],
+        text_elements: [],
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.040Z",
+      type: "event_msg",
+      payload: {
+        type: "agent_message",
+        message: "开始扫描",
+        phase: "commentary",
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.050Z",
+      type: "response_item",
+      payload: {
+        type: "web_search_call",
+        status: "completed",
+        action: {
+          type: "search",
+          queries: ["OpenAI Codex tracing"],
+        },
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.060Z",
+      type: "compacted",
+      payload: {
+        message: "compacted summary",
+        replacement_history: [],
+      },
+    },
+    {
+      timestamp: "2026-06-12T06:17:56.070Z",
+      type: "event_msg",
+      payload: { type: "task_complete", turn_id: "turn-event-web-search" },
+    },
+  ];
+
+  vol.fromJSON({ [rolloutPath]: lines.map((line) => JSON.stringify(line)).join("\n") });
+
+  await convertToRunTree(rolloutPath, { client, projectName: "codex" });
+  await client.awaitPendingTraceBatches();
+
+  const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+  const runs = Object.values(tree.data);
+
+  const userMessage = runs.find((run) => run.run_type === "tool" && run.name === "event.user_message");
+  expect(userMessage).toMatchObject({
+    outputs: expect.objectContaining({
+      source: "event_msg.user_message",
+      message: "探索日志",
+    }),
+    extra: {
+      metadata: expect.objectContaining({
+        ls_tool_namespace: "event",
+      }),
+    },
+  });
+
+  const agentMessage = runs.find((run) => run.run_type === "tool" && run.name === "event.agent_message");
+  expect(agentMessage).toMatchObject({
+    outputs: expect.objectContaining({
+      source: "event_msg.agent_message",
+      message: "开始扫描",
+      phase: "commentary",
+    }),
+    extra: {
+      metadata: expect.objectContaining({
+        ls_tool_namespace: "event",
+      }),
+    },
+  });
+
+  const webSearch = runs.find((run) => run.run_type === "tool" && run.name === "web.search_call");
+  expect(webSearch).toMatchObject({
+    inputs: {
+      input: {
+        type: "search",
+        queries: ["OpenAI Codex tracing"],
+      },
+    },
+    outputs: expect.objectContaining({
+      source: "response_item.web_search_call",
+      status: "completed",
+      action: {
+        type: "search",
+        queries: ["OpenAI Codex tracing"],
+      },
+    }),
+    extra: {
+      metadata: expect.objectContaining({
+        ls_tool_namespace: "web",
+      }),
+    },
+  });
+
+  const compacted = runs.find((run) => run.run_type === "tool" && run.name === "event.compacted");
+  expect(compacted).toMatchObject({
+    outputs: expect.objectContaining({
+      source: "compacted",
+      message: "compacted summary",
+      replacement_history: [],
+    }),
+    extra: {
+      metadata: expect.objectContaining({
+        ls_tool_namespace: "event",
       }),
     },
   });
